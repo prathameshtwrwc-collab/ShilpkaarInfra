@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { hasDatabase } from "@/lib/mode";
 import { createSession, destroySession, logActivity } from "@/lib/auth";
 import { clientIp, hashIp, rateLimit } from "@/lib/rate-limit";
 
@@ -17,6 +18,7 @@ const schema = z.object({ email: z.email().max(160), password: z.string().min(1)
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 160);
+  if (!hasDatabase) return { error: "The sales pipeline is not connected yet.", email };
   const ipHash = hashIp(await clientIp());
   if (!(await rateLimit("login", ipHash, 8, 15 * 60))) {
     return { error: "Too many sign-in attempts. Please wait 15 minutes and try again.", email };

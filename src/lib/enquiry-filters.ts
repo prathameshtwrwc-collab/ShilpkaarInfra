@@ -18,11 +18,11 @@ export function enquiryWhere(params: URLSearchParams): Prisma.EnquiryWhereInput 
   const q = params.get("q")?.trim();
   if (q) {
     where.OR = [
-      { reference: { contains: q } },
-      { companyName: { contains: q } },
-      { contactPerson: { contains: q } },
-      { mobile: { contains: q } },
-      { deliveryLocation: { contains: q } },
+      { reference: { contains: q, mode: "insensitive" } },
+      { companyName: { contains: q, mode: "insensitive" } },
+      { contactPerson: { contains: q, mode: "insensitive" } },
+      { mobile: { contains: q, mode: "insensitive" } },
+      { deliveryLocation: { contains: q, mode: "insensitive" } },
     ];
   }
   return where;

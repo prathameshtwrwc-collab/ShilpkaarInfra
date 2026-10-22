@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { PageIntro } from "@/components/site/PageIntro";
-import { db } from "@/lib/db";
+import { getCredits } from "@/lib/content";
 
 export const revalidate = 300;
 
@@ -11,11 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function CreditsPage() {
-  const media = await db.media.findMany({
-    where: { credit: { not: null } },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, url: true, alt: true, credit: true, license: true, licenseUrl: true, sourceUrl: true, kind: true },
-  });
+  const media = await getCredits();
   return (
     <>
       <PageIntro index="—" label="Credits" title="Image credits.">

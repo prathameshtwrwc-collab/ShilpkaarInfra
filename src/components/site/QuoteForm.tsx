@@ -27,14 +27,14 @@ const EMPTY = {
 };
 type Values = typeof EMPTY;
 
-type Props = { materials: Material[]; whatsapp: string; defaultMaterial?: string };
+type Props = { materials: Material[]; whatsapp: string; defaultMaterial?: string; online?: boolean };
 
 export function QuoteForm(props: Props) {
   const [round, setRound] = useState(0);
   return <QuoteFormInner key={round} {...props} onReset={() => setRound((r) => r + 1)} />;
 }
 
-function QuoteFormInner({ materials, whatsapp, defaultMaterial, onReset }: Props & { onReset: () => void }) {
+function QuoteFormInner({ materials, whatsapp, defaultMaterial, online = true, onReset }: Props & { onReset: () => void }) {
   const params = useSearchParams();
   const uid = useId();
   const [values, setValues] = useState<Values>(() => ({ ...EMPTY, material: defaultMaterial ?? "" }));
@@ -101,6 +101,25 @@ function QuoteFormInner({ materials, whatsapp, defaultMaterial, onReset }: Props
     }
     const fd = new FormData(e.currentTarget);
     startTransition(() => action(fd));
+  };
+
+  const whatsappSummary = () => {
+    const material = values.material === OTHER_MATERIAL ? "Other / project-specific" : (materials.find((m) => m.slug === values.material)?.name ?? "");
+    const gst = GST_OPTIONS.find((o) => o.value === values.gst)?.label ?? "";
+    const lines = [
+      "Hello SHILPKAR, I'd like a project quote.",
+      values.companyName && `Company: ${values.companyName}`,
+      values.contactPerson && `Contact: ${values.contactPerson}`,
+      values.mobile && `Mobile: ${values.mobile}`,
+      values.email && `Email: ${values.email}`,
+      material && `Material: ${material}`,
+      values.quantity && `Quantity: ${values.quantity} ${values.unit}`,
+      values.deliveryLocation && `Delivery location: ${values.deliveryLocation}`,
+      values.deliveryDate && `Required by: ${values.deliveryDate}`,
+      gst && `GST: ${gst}`,
+      values.requirements && `Notes: ${values.requirements}`,
+    ].filter(Boolean);
+    return whatsappHref(whatsapp, lines.join("\n"));
   };
 
   const grouped = materials.reduce<Record<string, Material[]>>((acc, m) => ((acc[m.category] ??= []).push(m), acc), {});
@@ -328,14 +347,30 @@ function QuoteFormInner({ materials, whatsapp, defaultMaterial, onReset }: Props
         </div>
       </div>
 
-      <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p id={`${uid}-privacy`} className="text-sm text-ink/70">
-          Your details are used only to respond to this enquiry.
-        </p>
-        <button type="submit" disabled={pending} className="btn btn-primary min-h-14 w-full text-sm disabled:cursor-wait disabled:opacity-70 sm:w-auto">
-          {pending ? "Submitting…" : "Submit Quote Request"} <ArrowRight />
-        </button>
-      </div>
+      {online ? (
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p id={`${uid}-privacy`} className="text-sm text-ink/70">
+            Your details are used only to respond to this enquiry.
+          </p>
+          <button type="submit" disabled={pending} className="btn btn-primary min-h-14 w-full text-sm disabled:cursor-wait disabled:opacity-70 sm:w-auto">
+            {pending ? "Submitting…" : "Submit Quote Request"} <ArrowRight />
+          </button>
+        </div>
+      ) : (
+        <div className="mt-10 border-l-2 border-accent-deep bg-paper px-5 py-4">
+          <p className="text-[0.9375rem] font-medium">Online quote requests are launching soon.</p>
+          <p id={`${uid}-privacy`} className="mt-1 text-sm text-ink/70">
+            Fill in what you can and send it to us on WhatsApp — the details above are added to your message automatically. Your details are used only to
+            respond to this enquiry.
+          </p>
+          <a href={whatsappSummary()} target="_blank" rel="noopener noreferrer" className="btn btn-primary mt-4 min-h-14 w-full gap-3 text-sm sm:w-auto">
+            <span className="inline-flex items-center gap-2">
+              <WhatsAppIcon size={17} /> Send these details on WhatsApp
+            </span>
+            <ArrowRight />
+          </a>
+        </div>
+      )}
     </form>
   );
 }

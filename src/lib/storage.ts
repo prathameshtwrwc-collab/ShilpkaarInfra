@@ -5,10 +5,17 @@ import { randomUUID } from "crypto";
 import sharp from "sharp";
 
 /**
- * Media storage. "local" writes to ./storage/uploads and is served by the
- * /media route — only suitable where the disk persists (dev, VPS). Use "s3"
- * (AWS S3, Cloudflare R2, MinIO…) on serverless / ephemeral hosts.
+ * Media storage drivers:
+ *  - "blob":  Vercel Blob (auto-selected when BLOB_READ_WRITE_TOKEN is set)
+ *  - "s3":    AWS S3, Cloudflare R2, MinIO… (STORAGE_DRIVER=s3)
+ *  - "local": ./storage/uploads served by /media — dev or persistent-disk hosts only
  */
+export type StorageDriver = "blob" | "s3" | "local";
+export function storageDriver(): StorageDriver {
+  const d = process.env.STORAGE_DRIVER;
+  if (d === "blob" || d === "s3" || d === "local") return d;
+  return process.env.BLOB_READ_WRITE_TOKEN ? "blob" : "local";
+}
 
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
 export const VIDEO_TYPES = ["video/mp4", "video/webm"] as const;
@@ -35,7 +42,12 @@ export function sniff(buf: Buffer): string | null {
 }
 
 async function put(key: string, body: Buffer, mime: string): Promise<string> {
-  const driver = process.env.STORAGE_DRIVER ?? "local";
+  const driver = storageDriver();
+  if (driver === "blob") {
+    const { put: blobPut } = await import("@vercel/blob");
+    const res = await blobPut(key, body, { access: "public", contentType: mime, addRandomSuffix: false, cacheControlMaxAge: 31536000 });
+    return res.url;
+  }
   if (driver === "s3") {
     const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
     const bucket = process.env.S3_BUCKET;
@@ -60,6 +72,9 @@ async function put(key: string, body: Buffer, mime: string): Promise<string> {
     );
     return `${publicUrl.replace(/\/$/, "")}/${key}`;
   }
+  if (process.env.VERCEL) {
+    throw new UploadError("Media storage is not configured. In Vercel, connect a Blob store (Project → Storage) and redeploy.");
+  }
   const file = path.join(LOCAL_ROOT, key);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, body);
@@ -67,7 +82,12 @@ async function put(key: string, body: Buffer, mime: string): Promise<string> {
 }
 
 export async function removeStored(key: string) {
-  const driver = process.env.STORAGE_DRIVER ?? "local";
+  const driver = storageDriver();
+  if (driver === "blob") {
+    const { del } = await import("@vercel/blob");
+    await del(key);
+    return;
+  }
   if (driver === "s3") {
     const { S3Client, DeleteObjectCommand } = await import("@aws-sdk/client-s3");
     const client = new S3Client({
@@ -81,6 +101,7 @@ export async function removeStored(key: string) {
     await client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
     return;
   }
+  if (process.env.VERCEL) return;
   const file = path.join(LOCAL_ROOT, key);
   if (!file.startsWith(LOCAL_ROOT)) return;
   await fs.rm(file, { force: true });

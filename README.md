@@ -2,7 +2,28 @@
 
 Marketing website, material catalogue, quote-request pipeline and admin CMS for SHILPKAR TRANSIT INFRA LLP (construction materials, bulk transportation and site logistics, Mumbai Metropolitan Region).
 
-**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Prisma · GSAP + Motion · react-three-fiber · zod · jose/bcrypt auth · sharp.
+**Stack:** Next.js 15 (App Router) · TypeScript · Tailwind CSS v4 · Prisma + PostgreSQL · Vercel Blob · GSAP + Motion · react-three-fiber · zod · jose/bcrypt auth · sharp.
+
+## Showcase mode (no database)
+
+If `DATABASE_URL` is not set, the site runs with **no backend at all**: every public page is built from the bundled content in `src/lib/seed-data.ts`. Nothing pretends to work:
+
+- The quote form stays usable but shows "Online quote requests are launching soon" and a **Send these details on WhatsApp** button that turns the filled-in form into a WhatsApp message.
+- `/admin/login` shows a "Coming soon" notice; admin pages and APIs stay locked.
+
+Deploy it as-is on Vercel (no environment variables needed). Adding the database later (steps below) switches everything on with no code change.
+
+## Deploying on Vercel (full version)
+
+1. **Database:** Vercel → your project → **Storage** → **Create Database** → **Neon** → **Connect** (all environments). This adds `DATABASE_URL` and `DATABASE_URL_UNPOOLED`.
+2. **Media:** **Storage** → **Create** → **Blob** → **Connect**. This adds `BLOB_READ_WRITE_TOKEN`; uploads then go to Blob automatically. Large videos upload straight from the browser to Blob, so Vercel's 4.5 MB request limit doesn't apply.
+3. **Environment variables** (Settings → Environment Variables): `SESSION_SECRET` and `IP_HASH_SALT` (32+ random characters each), `SITE_URL` (e.g. `https://shilpkar.in`). Optional: `RESEND_API_KEY`, `NOTIFY_FROM`, `NOTIFY_TO`.
+4. **Redeploy.** The `vercel-build` script applies database migrations, runs the seed (only adds missing records; never overwrites admin edits) and builds.
+5. **Create your admin** from your computer, pointing at the production database:
+   ```bash
+   # with DATABASE_URL / DATABASE_URL_UNPOOLED from Vercel in your local .env
+   npm run admin:create -- --email you@example.com --name "Your Name"
+   ```
 
 ---
 
@@ -10,7 +31,7 @@ Marketing website, material catalogue, quote-request pipeline and admin CMS for 
 
 ```bash
 npm install                 # also runs `prisma generate`
-cp .env.example .env        # then fill SESSION_SECRET and IP_HASH_SALT (see below)
+cp .env.example .env        # fill DATABASE_URL(+_UNPOOLED) with a Postgres URL, SESSION_SECRET, IP_HASH_SALT
 npx prisma migrate deploy   # create the database schema
 npm run db:seed             # 11 materials, 6 services, 4 fleet classes, licensed imagery
 npm run admin:create -- --email you@example.com --name "Your Name"   # prompts for a password (min 12 chars)
@@ -53,8 +74,8 @@ Admin (session-protected in middleware **and** re-checked server-side in every p
 
 These depend on your hosting and accounts, so they are implemented but not switched on:
 
-1. **Database** — SQLite (`file:./dev.db`) is for local use. For production, set `provider = "postgresql"` in `prisma/schema.prisma`, point `DATABASE_URL` at a managed Postgres (Neon, Supabase, RDS…), delete `prisma/migrations`, run `npx prisma migrate dev --name init` once, then `npx prisma migrate deploy && npm run db:seed` on the server.
-2. **Media storage** — `STORAGE_DRIVER=local` writes to `./storage/uploads` and is only safe on a host with a persistent disk. On Vercel/serverless, set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT` (for R2/MinIO), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` and `S3_PUBLIC_URL`. The admin media page warns if local storage is used in production.
+1. **Database** — PostgreSQL only (Neon via Vercel is the simplest). Any Postgres works: set `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED` (direct; may be the same URL).
+2. **Media storage** — Vercel Blob is used automatically when `BLOB_READ_WRITE_TOKEN` is set. Alternatively `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_REGION`, `S3_ENDPOINT` (R2/MinIO), `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_PUBLIC_URL`. Local disk is for development only and is refused on Vercel with a clear message.
 3. **Email notifications** — set `RESEND_API_KEY`, `NOTIFY_FROM` (a sender on a domain verified with Resend) and `NOTIFY_TO`. Until then enquiries are still saved and shown in the admin with notification status `disabled`.
 4. **`SITE_URL`** — your public domain, used for canonical URLs, Open Graph images, robots and the sitemap.
 

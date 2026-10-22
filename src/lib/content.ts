@@ -2,6 +2,8 @@ import "server-only";
 import { cache } from "react";
 import { db } from "./db";
 import { SETTING_DEFAULTS, settingSchemas, type SettingKey, type Settings } from "./settings-schema";
+import { hasDatabase } from "./mode";
+import * as S from "./static-content";
 
 export type MediaView = {
   id: string;
@@ -30,6 +32,7 @@ const mediaSelect = {
 } as const;
 
 export const getSettings = cache(async (): Promise<Settings> => {
+  if (!hasDatabase) return S.staticSettings();
   const rows = await db.siteSetting.findMany();
   const out = structuredClone(SETTING_DEFAULTS) as Settings;
   for (const row of rows) {
@@ -47,6 +50,7 @@ export const getSettings = cache(async (): Promise<Settings> => {
 
 export const getMediaMap = cache(async (ids: (string | null | undefined)[]) => {
   const list = ids.filter((x): x is string => !!x);
+  if (!hasDatabase) return new Map(list.map((id) => [id, S.staticMedia(id)]).filter((e): e is [string, MediaView] => !!e[1]));
   if (!list.length) return new Map<string, MediaView>();
   const rows = await db.media.findMany({ where: { id: { in: list } }, select: mediaSelect });
   return new Map(rows.map((r) => [r.id, r]));
@@ -109,9 +113,10 @@ function fetchProducts(includeUnpublished = false) {
   });
 }
 
-export const getProducts = cache(async () => (await fetchProducts()).map(toProductView));
+export const getProducts = cache(async () => (hasDatabase ? (await fetchProducts()).map(toProductView) : S.staticProducts()));
 
 export async function getProductBySlug(slug: string, includeUnpublished = false) {
+  if (!hasDatabase) return S.staticProducts().find((p) => p.slug === slug) ?? null;
   const p = await db.product.findUnique({ where: { slug }, include: productInclude });
   if (!p || (!p.published && !includeUnpublished)) return null;
   return toProductView(p);
@@ -119,6 +124,7 @@ export async function getProductBySlug(slug: string, includeUnpublished = false)
 
 /** Categories that currently have at least one published product. */
 export const getCategories = cache(async () => {
+  if (!hasDatabase) return S.staticCategories();
   const cats = await db.category.findMany({
     orderBy: { order: "asc" },
     include: { _count: { select: { products: { where: { published: true } } } } },
@@ -127,7 +133,9 @@ export const getCategories = cache(async () => {
 });
 
 export const getServices = cache(async () =>
-  db.service.findMany({
+  !hasDatabase
+    ? S.staticServices()
+    : db.service.findMany({
     where: { published: true },
     orderBy: { order: "asc" },
     include: { image: { select: mediaSelect } },
@@ -135,15 +143,29 @@ export const getServices = cache(async () =>
 );
 
 export const getFleet = cache(async () =>
-  db.fleetVehicle.findMany({
+  !hasDatabase
+    ? S.staticFleet()
+    : db.fleetVehicle.findMany({
     where: { published: true },
     orderBy: { order: "asc" },
     include: { image: { select: mediaSelect } },
   }),
 );
 
-export const getIndustries = cache(async () => db.industry.findMany({ orderBy: { order: "asc" } }));
-export const getDifferentiators = cache(async () => db.differentiator.findMany({ orderBy: { order: "asc" } }));
+export const getIndustries = cache(async () => (hasDatabase ? db.industry.findMany({ orderBy: { order: "asc" } }) : S.staticIndustries()));
+export const getDifferentiators = cache(async () =>
+  hasDatabase ? db.differentiator.findMany({ orderBy: { order: "asc" } }) : S.staticDifferentiators(),
+);
+
+/** Image credits for /credits. */
+export async function getCredits() {
+  if (!hasDatabase) return S.staticCredits();
+  return db.media.findMany({
+    where: { credit: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, url: true, alt: true, credit: true, license: true, licenseUrl: true, sourceUrl: true, kind: true },
+  });
+}
 
 /** Material options for the quote form (published products only). */
 export const getMaterialOptions = cache(async () => {

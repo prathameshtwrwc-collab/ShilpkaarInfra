@@ -3,6 +3,7 @@
 import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { hasDatabase } from "@/lib/mode";
 import { notifyEnquiry } from "@/lib/notify";
 import { clientIp, hashIp, rateLimit } from "@/lib/rate-limit";
 import { enquirySchema, normaliseIndianMobile, OTHER_MATERIAL, type EnquiryFieldErrors } from "@/lib/validation";
@@ -21,6 +22,9 @@ function makeReference() {
 }
 
 export async function submitEnquiry(_prev: EnquiryState, formData: FormData): Promise<EnquiryState> {
+  if (!hasDatabase) {
+    return { status: "error", message: "Online quote requests are launching soon. Please send your details on WhatsApp or call us." };
+  }
   // Spam traps: a hidden honeypot field and a minimum fill time.
   const honeypot = String(formData.get("website") ?? "");
   const startedAt = Number(formData.get("startedAt") ?? 0);

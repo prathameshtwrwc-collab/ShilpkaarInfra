@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Settings } from "@/lib/settings-schema";
 import { telHref, whatsappHref, whatsappMessage } from "@/lib/contact";
 import { QuoteForm } from "./QuoteForm";
+import { hasDatabase } from "@/lib/mode";
 import { RiseHeading, SectionLabel } from "./SectionHead";
 import { ArrowUpRight, MailIcon, PhoneIcon, WhatsAppIcon } from "./icons";
 
@@ -73,7 +74,7 @@ export function QuoteSection({ sections, contact, materials, headingAs = "h2", d
               <span>Fields marked * are required</span>
             </p>
             <Suspense fallback={<div className="h-[36rem]" />}>
-              <QuoteForm materials={materials} whatsapp={contact.whatsapp} defaultMaterial={defaultMaterial} />
+              <QuoteForm materials={materials} whatsapp={contact.whatsapp} defaultMaterial={defaultMaterial} online={hasDatabase} />
             </Suspense>
           </div>
         </div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAdmin } from "@/lib/auth";
+import { hasDatabase } from "@/lib/mode";
 import { Mark } from "@/components/site/Header";
 import { LoginForm } from "./LoginForm";
 
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Sales Pipeline Login", robots: { ind
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-  if (await getAdmin()) redirect("/admin");
+  if (hasDatabase && (await getAdmin())) redirect("/admin");
   return (
     <main className="grid min-h-screen bg-ink text-paper lg:grid-cols-2">
       <div className="relative hidden overflow-hidden lg:block">
@@ -29,9 +30,21 @@ export default async function LoginPage() {
             <Mark className="h-8 w-8" />
             <span className="display-wide text-sm tracking-[0.18em]">Shilpkar</span>
           </Link>
-          <h1 className="display mt-10 text-6xl">Sign in</h1>
-          <p className="mt-3 text-sm text-ink/65">Authorised administrators only. Accounts are created by the site owner on the server.</p>
-          <LoginForm />
+          {hasDatabase ? (
+            <>
+              <h1 className="display mt-10 text-6xl">Sign in</h1>
+              <p className="mt-3 text-sm text-ink/65">Authorised administrators only. Accounts are created by the site owner on the server.</p>
+              <LoginForm />
+            </>
+          ) : (
+            <>
+              <h1 className="display mt-10 text-6xl">Coming soon</h1>
+              <p className="mt-4 text-[0.9375rem] leading-relaxed text-ink/75">
+                The sales pipeline — enquiry management, catalogue and content editing — is being set up and will be available here once it is connected.
+              </p>
+              <p className="label mt-6 inline-block border border-ink/20 px-3 py-2 text-ink/70">Status · In progress</p>
+            </>
+          )}
           <Link href="/" className="label mt-10 inline-block text-ink/65 hover:text-ink">
             ← Back to website
           </Link>

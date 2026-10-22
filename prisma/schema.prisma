@@ -1,14 +1,16 @@
-// SHILPKAR TRANSIT INFRA LLP — content + enquiry schema.
-// SQLite for local development. For production, switch `provider` to
-// "postgresql" and point DATABASE_URL at a managed Postgres instance.
+// SHILPKAR TRANSIT INFRA LLP — content + enquiry schema (PostgreSQL).
+// DATABASE_URL: pooled connection used by the app at runtime.
+// DATABASE_URL_UNPOOLED: direct connection used by migrations.
+// Vercel's Neon / Postgres integration sets both automatically.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model AdminUser {

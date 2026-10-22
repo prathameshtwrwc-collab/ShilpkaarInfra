@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
-const remotePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [];
+const remotePatterns: NonNullable<NextConfig["images"]>["remotePatterns"] = [
+  // Vercel Blob media uploads
+  { protocol: "https", hostname: "*.public.blob.vercel-storage.com", pathname: "/**" },
+];
 if (process.env.S3_PUBLIC_URL) {
   const u = new URL(process.env.S3_PUBLIC_URL);
   remotePatterns.push({ protocol: u.protocol.replace(":", "") as "https" | "http", hostname: u.hostname, pathname: "/**" });
