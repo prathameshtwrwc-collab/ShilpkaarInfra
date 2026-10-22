@@ -1,0 +1,193 @@
+// SHILPKAR TRANSIT INFRA LLP — content + enquiry schema.
+// SQLite for local development. For production, switch `provider` to
+// "postgresql" and point DATABASE_URL at a managed Postgres instance.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  lastLoginAt  DateTime?
+  notes        EnquiryNote[]
+}
+
+/// Uploaded or seeded image/video. `url` is what the public site renders.
+model Media {
+  id          String   @id @default(cuid())
+  kind        String // IMAGE | VIDEO
+  url         String
+  storageKey  String? // null for bundled seed assets (served from /public)
+  mime        String
+  size        Int      @default(0)
+  width       Int?
+  height      Int?
+  alt         String   @default("")
+  credit      String? // photographer / author
+  license     String?
+  licenseUrl  String?
+  sourceUrl   String?
+  representative Boolean @default(false) // illustrative, not company-owned
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  productCovers  Product[]      @relation("ProductCover")
+  productImages  ProductImage[]
+  services       Service[]
+  fleet          FleetVehicle[]
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  slug     String    @unique
+  order    Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  name         String
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  summary      String
+  description  String
+  applications String   @default("[]") // JSON string[]
+  quoteNote    String   @default("Pricing is quoted per project, based on quantity, grade and delivery location.")
+  featured     Boolean  @default(false)
+  published    Boolean  @default(true)
+  order        Int      @default(0)
+  coverId      String?
+  cover        Media?   @relation("ProductCover", fields: [coverId], references: [id], onDelete: SetNull)
+  focalX       Int      @default(50) // object-position %, 0–100
+  focalY       Int      @default(50)
+  images       ProductImage[]
+  enquiries    Enquiry[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaId   String
+  media     Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  order     Int     @default(0)
+
+  @@unique([productId, mediaId])
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  summary     String
+  detail      String   @default("")
+  order       Int      @default(0)
+  published   Boolean  @default(true)
+  imageId     String?
+  image       Media?   @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+}
+
+model FleetVehicle {
+  id          String   @id @default(cuid())
+  name        String
+  vehicleClass String
+  role        String
+  description String   @default("")
+  order       Int      @default(0)
+  published   Boolean  @default(true)
+  imageId     String?
+  image       Media?   @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+}
+
+model Industry {
+  id    String @id @default(cuid())
+  name  String
+  note  String @default("")
+  order Int    @default(0)
+}
+
+model Differentiator {
+  id    String @id @default(cuid())
+  title String
+  body  String
+  order Int    @default(0)
+}
+
+/// Key/value JSON store for page copy, hero, stats, contact and footer.
+model SiteSetting {
+  key       String   @id
+  value     String // JSON
+  updatedAt DateTime @updatedAt
+}
+
+model Enquiry {
+  id               String   @id @default(cuid())
+  reference        String   @unique
+  companyName      String
+  contactPerson    String
+  mobile           String
+  email            String?
+  productId        String?
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  materialName     String // snapshot, survives product edits/deletion
+  quantity         Float
+  unit             String
+  deliveryLocation String
+  deliveryDate     DateTime?
+  gst              String
+  requirements     String?
+  source           String?  // page/section the enquiry started from
+  status           String   @default("NEW") // NEW | CONTACTED | QUOTED | CLOSED
+  notifyStatus     String   @default("PENDING") // PENDING | SENT | FAILED | DISABLED
+  ipHash           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  notes            EnquiryNote[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model EnquiryNote {
+  id        String     @id @default(cuid())
+  enquiryId String
+  enquiry   Enquiry    @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body      String
+  createdAt DateTime   @default(now())
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  actor     String
+  action    String
+  entity    String
+  entityId  String?
+  summary   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// Fixed-window rate limiter, persisted so it holds across server instances.
+model RateLimit {
+  key         String   @id
+  count       Int
+  windowStart DateTime
+}
